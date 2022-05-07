@@ -40,7 +40,7 @@ if (builder.Environment.IsDevelopment())
     builder.Services.AddSwaggerGen(
         options =>
         {
-            options.AddSecurityDefinition("oauth2", new OpenApiSecurityScheme
+            options.AddSecurityDefinition("JWT", new OpenApiSecurityScheme
             {
                 Description = "Standard authorization header using the bearer scheme (\"bearer {token}\")",
                 In = ParameterLocation.Header,
