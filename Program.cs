@@ -1,3 +1,4 @@
+using ForumProjectBackend.Controllers;
 using ForumProjectBackend.DbContexts;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -9,6 +10,8 @@ using System.Text;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
+builder.Services.Configure<AuthController.JwtSettings>(builder.Configuration.GetSection("Jwt"));
+
 builder.Services.AddControllers();
 
 builder.Services.AddDbContext<ForumProjectDbContext>(
@@ -42,7 +45,6 @@ if (builder.Environment.IsDevelopment())
         {
             options.AddSecurityDefinition("JWT", new OpenApiSecurityScheme
             {
-                Description = "Standard authorization header using the bearer scheme (\"bearer {token}\")",
                 In = ParameterLocation.Header,
                 Name = "Authorization",
                 Type = SecuritySchemeType.ApiKey

@@ -1,7 +1,10 @@
 ﻿using ForumProjectBackend.DbContexts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
@@ -12,41 +15,95 @@ namespace ForumProjectBackend.Controllers
     [Route("api/auth")]
     public class AuthController : ControllerBase
     {
-        private readonly IConfiguration _config;
+        public class JwtSettings
+        {
+            public string Key { get; set; } = string.Empty;
+            public string Issuer { get; set; } = string.Empty;
+            public string Audience { get; set; } = string.Empty;
+            public double LifetimeMinutes { get; set; } = 0.0;
+        }
+
+        public class AuthRegisterDto
+        {
+            [DataType(DataType.EmailAddress)]
+            [MaxLength(128)]
+            [Required(AllowEmptyStrings = false)]
+            [DisplayFormat(ConvertEmptyStringToNull = false)]
+            public string Email { get; set; } = string.Empty;
+
+            /*
+                - At least one lower case letter.
+                - At least one upper case letter.
+                - At least one special character: !"`'#%&,:;<>=@{}~$()*+/\?[]^|
+                - At least one number.
+                - At least 8 characters length.
+            */
+
+            [DataType(DataType.Password)]
+            [MaxLength(128)]
+            [RegularExpression("^.*(?=.{8,})(?=.*\\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[!\"`'#%&,:;<>=@{}~\\$\\(\\)\\*\\+\\/\\\\\\?\\[\\]\\^\\|]).*$")]
+            [Required(AllowEmptyStrings = false)]
+            [DisplayFormat(ConvertEmptyStringToNull = false)]
+            public string Password { get; set; } = string.Empty;
+
+            [DataType(DataType.Password)]
+            [Required(AllowEmptyStrings = false)]
+            [DisplayFormat(ConvertEmptyStringToNull = false)]
+            [Compare(nameof(Password))]
+            [NotMapped]
+            public string ConfirmPassword { get; set; } = string.Empty;
+        }
+
+        public class AuthLoginDto
+        {
+            [DataType(DataType.EmailAddress)]
+            [MaxLength(128)]
+            [Required(AllowEmptyStrings = false)]
+            [DisplayFormat(ConvertEmptyStringToNull = false)]
+            public string Email { get; set; } = string.Empty;
+
+            [DataType(DataType.Password)]
+            [MaxLength(128)]
+            [Required(AllowEmptyStrings = false)]
+            [DisplayFormat(ConvertEmptyStringToNull = false)]
+            public string Password { get; set; } = string.Empty;
+        }
+
+        private readonly JwtSettings _jwtSettings;
         private readonly ForumProjectDbContext _dbContext;
 
-        private static string GenerateToken(ForumProjectDbContext.User user,
-            string jwtKey, string jwtIssuer, string jwtAudience)
+        private static string GenerateToken(AuthLoginDto authDto,
+            string jwtKey, string jwtIssuer, string jwtAudience, double jwtLifetimeMinutes)
         {
             var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
             var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha512Signature);
 
             var claims = new Claim[]
             {
-                new Claim(ClaimTypes.Email, user.Email.ToString())
+                new Claim(ClaimTypes.Email, authDto.Email.ToString())
             };
 
             var token = new JwtSecurityToken(
                 issuer: jwtIssuer,
                 audience: jwtAudience,
                 claims: claims,
-                expires: DateTime.Now.AddMinutes(15),
+                expires: DateTime.Now.AddMinutes(jwtLifetimeMinutes),
                 signingCredentials: credentials
             );
 
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
 
-        public AuthController(IConfiguration config, ForumProjectDbContext dbContext)
+        public AuthController(IOptions<JwtSettings> jwtSettings, ForumProjectDbContext dbContext)
         {
-            _config = config;
+            _jwtSettings = jwtSettings.Value;
             _dbContext = dbContext;
         }
 
         [HttpPost]
         [Route("register")]
         [AllowAnonymous]
-        public IActionResult Register(ForumProjectDbContext.User userDto)
+        public IActionResult Register(AuthRegisterDto authDto)
         {
             if (_dbContext.Users == null)
             {
@@ -56,7 +113,7 @@ namespace ForumProjectBackend.Controllers
             ForumProjectDbContext.User? existingUser;
             try
             {
-                existingUser = _dbContext.Users.Find(userDto.Email);
+                existingUser = _dbContext.Users.Find(authDto.Email);
             }
             catch (Exception)
             {
@@ -68,12 +125,20 @@ namespace ForumProjectBackend.Controllers
 
             if (existingUser != null)
             {
-                return BadRequest($"User {userDto.Email} already exists.");
+                return BadRequest($"User {authDto.Email} already exists.");
             }
 
             try
             {
-                _dbContext.Users.Add(userDto);
+                var newUser = new ForumProjectDbContext.User
+                {
+                    Email = authDto.Email,
+                    DateTimeRegistered = DateTime.UtcNow,
+                    IsEmailConfirmed = false,
+                    PasswordHash = ForumProjectDbContext.User.HashPassword(authDto.Password)
+                };
+
+                _dbContext.Users.Add(newUser);
                 _dbContext.SaveChanges();
             }
             catch (Exception)
@@ -86,14 +151,14 @@ namespace ForumProjectBackend.Controllers
 
             return Created(
                 HttpContext.Request.Scheme + "://" + HttpContext.Request.Host + HttpContext.Request.Path,
-                userDto
+                authDto
             );
         }
 
         [HttpPost]
         [Route("login")]
         [AllowAnonymous]
-        public IActionResult Login(ForumProjectDbContext.User userDto)
+        public IActionResult Login(AuthLoginDto authDto)
         {
             if (_dbContext.Users == null)
             {
@@ -103,7 +168,7 @@ namespace ForumProjectBackend.Controllers
             ForumProjectDbContext.User? user;
             try
             {
-                user = _dbContext.Users.Find(userDto.Email);
+                user = _dbContext.Users.Find(authDto.Email);
             }
             catch (Exception)
             {
@@ -115,19 +180,25 @@ namespace ForumProjectBackend.Controllers
 
             if (user == null)
             {
-                return NotFound($"User {userDto.Email} not found.");
+                return NotFound($"User {authDto.Email} not found.");
             }
 
-            if (user.Password != userDto.Password)
+            if (!ForumProjectDbContext.User.VerifyPassword(authDto.Password, user.PasswordHash))
             {
                 return Forbid();
             }
 
+            if (!user.IsEmailConfirmed)
+            {
+                return Unauthorized($"User {authDto.Email} email not confirmed.");
+            }
+
             return Ok(GenerateToken(
-                user,
-                _config.GetSection("Jwt:Key").Value,
-                _config.GetSection("Jwt:Issuer").Value,
-                _config.GetSection("Jwt:Audience").Value
+                authDto,
+                _jwtSettings.Key,
+                _jwtSettings.Issuer,
+                _jwtSettings.Audience,
+                _jwtSettings.LifetimeMinutes
             ));
         }
     }

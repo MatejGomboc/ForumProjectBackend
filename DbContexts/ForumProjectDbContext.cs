@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Isopoh.Cryptography.Argon2;
+using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
 
 namespace ForumProjectBackend.DbContexts
@@ -7,6 +8,16 @@ namespace ForumProjectBackend.DbContexts
     {
         public class User
         {
+            public static string HashPassword(string password)
+            {
+                return Argon2.Hash(password);
+            }
+
+            public static bool VerifyPassword(string password, string passwordHash)
+            {
+                return Argon2.Verify(passwordHash, password);
+            }
+
             [Key]
             [DataType(DataType.EmailAddress)]
             [MaxLength(128)]
@@ -14,19 +25,16 @@ namespace ForumProjectBackend.DbContexts
             [DisplayFormat(ConvertEmptyStringToNull = false)]
             public string Email { get; set; } = string.Empty;
 
-            /*
-                - At least one lower case letter.
-                - At least one upper case letter.
-                - At least one special character: !"`'#%&,:;<>=@{}~$()*+/\?[]^|
-                - At least one number.
-                - At least 8 characters length.
-            */
+            [DataType(DataType.DateTime)]
+            [Required]
+            public DateTime DateTimeRegistered { get; set; } = DateTime.UnixEpoch;
 
-            [MaxLength(128)]
-            [RegularExpression("^.*(?=.{8,})(?=.*\\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[!\"`'#%&,:;<>=@{}~\\$\\(\\)\\*\\+\\/\\\\\\?\\[\\]\\^\\|]).*$")]
+            [Required]
+            public bool IsEmailConfirmed { get; set; } = false;
+
             [Required(AllowEmptyStrings = false)]
             [DisplayFormat(ConvertEmptyStringToNull = false)]
-            public string Password { get; set; } = string.Empty;
+            public string PasswordHash { get; set; } = string.Empty;
         }
 
         public ForumProjectDbContext(DbContextOptions<ForumProjectDbContext> options) :
