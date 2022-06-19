@@ -171,7 +171,7 @@ namespace ForumProjectBackend.Controllers
             var token = new JwtSecurityToken(
                 issuer: jwtIssuer,
                 claims: claims,
-                expires: DateTime.Now.AddMinutes(lifetimeMinutes),
+                expires: DateTime.UtcNow.AddMinutes(lifetimeMinutes),
                 signingCredentials: signingCredentials
             );
 
@@ -240,7 +240,9 @@ namespace ForumProjectBackend.Controllers
                     var newUser = new ForumProjectDbContext.User
                     {
                         Username = registerDto.Username,
-                        PasswordHash = ForumProjectDbContext.User.HashPassword(registerDto.Password)
+                        PasswordHash = ForumProjectDbContext.User.HashPassword(registerDto.Password),
+                        RefreshTokenHash = "*",
+                        DateTimeRefreshTokenCreated = DateTime.MinValue
                     };
 
                     _dbContext.Users.Add(newUser);
@@ -268,7 +270,7 @@ namespace ForumProjectBackend.Controllers
             }
         }
 
-        [HttpPost]
+        [HttpPatch]
         [Route("login")]
         [AllowAnonymous]
         public IActionResult Login([FromBody] LoginCredentials credentials)
@@ -347,7 +349,7 @@ namespace ForumProjectBackend.Controllers
             }
         }
 
-        [HttpPost]
+        [HttpPatch]
         [Route("refresh")]
         [AllowAnonymous]
         public IActionResult Refresh([FromBody] LoginResponse credentials)
@@ -475,7 +477,7 @@ namespace ForumProjectBackend.Controllers
             }
         }
 
-        [HttpPost]
+        [HttpPatch]
         [Route("logout")]
         [Authorize]
         public IActionResult Logout()
@@ -514,11 +516,75 @@ namespace ForumProjectBackend.Controllers
                     return Unauthorized();
                 }
 
+                user.RefreshTokenHash = "*";
                 user.DateTimeRefreshTokenCreated = DateTime.MinValue;
 
                 try
                 {
                     _dbContext.Users.Update(user);
+                    _dbContext.SaveChanges();
+                }
+                catch (Exception)
+                {
+                    return Problem(
+                        statusCode: 500,
+                        title: "Failed to write data to database."
+                    );
+                }
+
+                return Ok();
+            }
+            catch (Exception)
+            {
+                return Problem(
+                    statusCode: 500,
+                    title: "Internal server error."
+                );
+            }
+        }
+
+        [HttpDelete]
+        [Route("unregister")]
+        [Authorize]
+        public IActionResult Unregister()
+        {
+            try
+            {
+                string? username = HttpContext.User.FindFirstValue(ClaimTypes.Name);
+                if (username == null)
+                {
+                    return Unauthorized();
+                }
+
+                if (_dbContext.Users == null)
+                {
+                    return Problem(
+                        statusCode: 500,
+                        title: "Failed to read data from database."
+                    );
+                }
+
+                ForumProjectDbContext.User? user;
+                try
+                {
+                    user = _dbContext.Users.Find(username);
+                }
+                catch (Exception)
+                {
+                    return Problem(
+                        statusCode: 500,
+                        title: "Failed to read data from database."
+                    );
+                }
+
+                if (user == null)
+                {
+                    return Unauthorized();
+                }
+
+                try
+                {
+                    _dbContext.Users.Remove(user);
                     _dbContext.SaveChanges();
                 }
                 catch (Exception)

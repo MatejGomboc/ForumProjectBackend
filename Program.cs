@@ -35,40 +35,34 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
             ValidateAudience = false,
 
             RequireExpirationTime = true,
-            ValidateLifetime = true
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.Zero
         };
     }
 );
 
-if (builder.Environment.IsDevelopment())
-{
-    builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddEndpointsApiExplorer();
 
-    builder.Services.AddSwaggerGen(
-        options =>
+builder.Services.AddSwaggerGen(
+    options =>
+    {
+        options.AddSecurityDefinition("oauth2", new OpenApiSecurityScheme
         {
-            options.AddSecurityDefinition("oauth2", new OpenApiSecurityScheme
-            {
-                In = ParameterLocation.Header,
-                Name = "Authorization",
-                Type = SecuritySchemeType.ApiKey,
-                Scheme = "Bearer",
-                Description = "bearer {access_token}"
-            });
+            In = ParameterLocation.Header,
+            Name = "Authorization",
+            Type = SecuritySchemeType.ApiKey,
+            Scheme = "Bearer",
+            Description = "bearer {access_token}"
+        });
 
-            options.OperationFilter<SecurityRequirementsOperationFilter>();
-        }
-    );
-}
+        options.OperationFilter<SecurityRequirementsOperationFilter>();
+    }
+);
 
 WebApplication app = builder.Build();
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
-
+app.UseSwagger();
+app.UseSwaggerUI();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
