@@ -24,21 +24,22 @@ namespace ForumProjectBackend.Migrations
 
             modelBuilder.Entity("ForumProjectBackend.DbContexts.ForumProjectDbContext+User", b =>
                 {
-                    b.Property<string>("Email")
+                    b.Property<string>("Username")
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
 
-                    b.Property<DateTime>("DateTimeRegistered")
+                    b.Property<DateTime>("DateTimeRefreshTokenCreated")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsEmailConfirmed")
-                        .HasColumnType("boolean");
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.HasKey("Email");
+                    b.Property<string>("RefreshTokenHash")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Username");
 
                     b.ToTable("Users");
                 });

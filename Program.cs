@@ -7,9 +7,8 @@ using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.Filters;
 using System.Text;
 
-var builder = WebApplication.CreateBuilder(args);
+WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
 builder.Services.Configure<AuthController.JwtSettings>(builder.Configuration.GetSection("Jwt"));
 
 builder.Services.AddControllers();
@@ -23,15 +22,20 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
     {
         options.TokenValidationParameters = new TokenValidationParameters
         {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
+            RequireSignedTokens = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration.GetSection("Jwt:Issuer").Value,
-            ValidAudience = builder.Configuration.GetSection("Jwt:Audience").Value,
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(builder.Configuration.GetSection("Jwt:Key").Value)
-            )
+            ),
+            ValidAlgorithms = new List<string> { SecurityAlgorithms.HmacSha256Signature },
+
+            ValidateIssuer = true,
+            ValidIssuer = builder.Configuration.GetSection("Jwt:Issuer").Value,
+
+            ValidateAudience = false,
+
+            RequireExpirationTime = true,
+            ValidateLifetime = true
         };
     }
 );
@@ -43,11 +47,13 @@ if (builder.Environment.IsDevelopment())
     builder.Services.AddSwaggerGen(
         options =>
         {
-            options.AddSecurityDefinition("JWT", new OpenApiSecurityScheme
+            options.AddSecurityDefinition("oauth2", new OpenApiSecurityScheme
             {
                 In = ParameterLocation.Header,
                 Name = "Authorization",
-                Type = SecuritySchemeType.ApiKey
+                Type = SecuritySchemeType.ApiKey,
+                Scheme = "Bearer",
+                Description = "bearer {access_token}"
             });
 
             options.OperationFilter<SecurityRequirementsOperationFilter>();
@@ -55,9 +61,8 @@ if (builder.Environment.IsDevelopment())
     );
 }
 
-var app = builder.Build();
+WebApplication app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();

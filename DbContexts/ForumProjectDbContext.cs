@@ -18,23 +18,33 @@ namespace ForumProjectBackend.DbContexts
                 return Argon2.Verify(passwordHash, password);
             }
 
+            public static string HashRefreshToken(string refreshToken)
+            {
+                return Argon2.Hash(refreshToken);
+            }
+
+            public static bool VerifyRefreshToken(string refreshToken, string refreshTokenHash)
+            {
+                return Argon2.Verify(refreshTokenHash, refreshToken);
+            }
+
             [Key]
-            [DataType(DataType.EmailAddress)]
             [MaxLength(128)]
             [Required(AllowEmptyStrings = false)]
             [DisplayFormat(ConvertEmptyStringToNull = false)]
-            public string Email { get; set; } = string.Empty;
-
-            [DataType(DataType.DateTime)]
-            [Required]
-            public DateTime DateTimeRegistered { get; set; } = DateTime.UnixEpoch;
-
-            [Required]
-            public bool IsEmailConfirmed { get; set; } = false;
+            public string Username { get; set; } = string.Empty;
 
             [Required(AllowEmptyStrings = false)]
             [DisplayFormat(ConvertEmptyStringToNull = false)]
             public string PasswordHash { get; set; } = string.Empty;
+
+            [Required(AllowEmptyStrings = false)]
+            [DisplayFormat(ConvertEmptyStringToNull = false)]
+            public string RefreshTokenHash { get; set; } = string.Empty;
+
+            [DataType(DataType.DateTime)]
+            [Required]
+            public DateTime DateTimeRefreshTokenCreated { get; set; } = DateTime.UnixEpoch;
         }
 
         public ForumProjectDbContext(DbContextOptions<ForumProjectDbContext> options) :
