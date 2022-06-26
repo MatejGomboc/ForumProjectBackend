@@ -36,7 +36,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
 
             RequireExpirationTime = true,
             ValidateLifetime = true,
-            ClockSkew = TimeSpan.Zero
+            ClockSkew = TimeSpan.Zero,
+
+            ValidTypes = new List<string> { "JWT" }
         };
     }
 );
